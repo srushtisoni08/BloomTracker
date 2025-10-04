@@ -1,0 +1,7 @@
+react-leaflet 
+leaflet
+chart.js 
+react-chartjs-2
+
+# command to install them
+# npm install -r requirements.txt
