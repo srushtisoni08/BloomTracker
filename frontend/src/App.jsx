@@ -9,12 +9,18 @@ function App() {
   const [coords, setCoords] = useState({ lat: 20.59, lon: 78.96 }); // default India
 
   const fetchData = async () => {
-    const res = await fetch(`http://127.0.0.1:5000/ndvi?lat=${coords.lat}&lon=${coords.lon}`);
-    const data = await res.json();
-    setNdviData(data.data);
-    setStatus(data.status);
+    try {
+      const res = await fetch(
+        `http://127.0.0.1:5000/ndvi?lat=${coords.lat}&lon=${coords.lon}`
+      );
+      const data = await res.json();
+      setNdviData(data.data);     // NDVI array from backend
+      setStatus(data.status);     // Blooming status message
+    } catch (err) {
+      console.error("Error fetching NDVI data:", err);
+    }
   };
-
+  
   useEffect(() => { fetchData(); }, []);
 
   return (

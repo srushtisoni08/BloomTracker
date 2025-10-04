@@ -14,7 +14,10 @@ def home():
 def get_ndvi():
     lat = request.args.get('lat')
     lon = request.args.get('lon')
-    ndvi_data = fetch_ndvi_data(lat, lon)
+    start = request.args.get('start', '2024-01-01')
+    end = request.args.get('end', '2024-12-31')
+    
+    ndvi_data = fetch_ndvi_data(lat, lon, start, end)
     bloom_status = detect_bloom(ndvi_data)
     return jsonify({
         "location": {"lat": lat, "lon": lon},

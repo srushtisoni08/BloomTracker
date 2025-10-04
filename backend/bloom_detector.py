@@ -1,12 +1,15 @@
-def detect_bloom(ndvi_data):
+def detect_bloom(df, threshold=0.15):
     """
-    Detect bloom period when NDVI rises sharply (>0.15 increase month to month)
+    Detect blooming events based on significant increases in NDVI.
+
+    :param df: DataFrame containing NDVI data
+    :param threshold: NDVI increase threshold to consider as blooming
+    :return: List of dates when blooming events occurred
     """
-    blooms = []
-    for i in range(1, len(ndvi_data)):
-        diff = ndvi_data[i]["ndvi"] - ndvi_data[i-1]["ndvi"]
-        if diff > 0.15:
-            blooms.append(ndvi_data[i]["month"])
-    if not blooms:
-        return "No active bloom detected"
-    return f"Blooming observed in: {', '.join(blooms)}"
+    blooming_dates = []
+
+    for i in range(1, len(df)):
+        if df['NDVI'].iloc[i] - df['NDVI'].iloc[i - 1] > threshold:
+            blooming_dates.append(df['Date'].iloc[i])
+
+    return blooming_dates
