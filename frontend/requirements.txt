@@ -2,6 +2,7 @@ react-leaflet
 leaflet
 chart.js 
 react-chartjs-2
+lucide-react
 
 # command to install them
 # npm install -r requirements.txt
