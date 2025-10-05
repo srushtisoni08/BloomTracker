@@ -6,4 +6,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss(),
   ],
+  preview: {
+    host: true, // binds to 0.0.0.0
+    allowedHosts: ['bloomtracker-bg0j.onrender.com'], // allow your Render hostname
+  },
 })
