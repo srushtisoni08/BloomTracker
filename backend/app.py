@@ -1,10 +1,10 @@
 """
-BloomWatch Backend - Standalone Version
-Single file application for easy deployment and testing
+BloomWatch Backend - WITH REAL NASA API INTEGRATION
+Enhanced version with actual NASA Earth observation data
 
 Usage:
 1. Install dependencies: pip install flask flask-cors numpy requests
-2. Run: python standalone_app.py
+2. Run: python app.py
 3. Access: http://localhost:5000/api/health
 """
 
@@ -15,17 +15,35 @@ import numpy as np
 from typing import List, Dict
 import os
 
+# Import the real NASA service
+try:
+    from services.nasa_api import RealNASAEarthDataService
+    REAL_NASA_AVAILABLE = True
+    print("✅ Real NASA API service loaded successfully")
+except ImportError:
+    print("⚠️  Warning: Could not import real NASA service, using mock data")
+    REAL_NASA_AVAILABLE = False
+
 app = Flask(__name__)
 CORS(app)
 
 # Configuration
 NASA_API_KEY = os.getenv('NASA_API_KEY', 'DEMO_KEY')
 BLOOM_THRESHOLD_NDVI = 0.6
+USE_REAL_NASA_DATA = os.getenv('USE_REAL_NASA', 'true').lower() == 'true'
 
-# ========== Helper Functions ==========
+# Initialize NASA service
+if REAL_NASA_AVAILABLE and USE_REAL_NASA_DATA:
+    nasa_service = RealNASAEarthDataService(api_key=NASA_API_KEY)
+    print("🛰️  Using REAL NASA data")
+else:
+    nasa_service = None
+    print("🎭 Using MOCK data")
+
+# ========== Helper Functions (Mock Data Fallback) ==========
 
 def generate_mock_ndvi_data(lat, lon, start_date, end_date):
-    """Generate realistic mock NDVI time series data"""
+    """Generate realistic mock NDVI time series data (fallback)"""
     start = datetime.strptime(start_date, '%Y-%m-%d')
     end = datetime.strptime(end_date, '%Y-%m-%d')
     
@@ -49,8 +67,8 @@ def generate_mock_ndvi_data(lat, lon, start_date, end_date):
             'date': date.strftime('%Y-%m-%d'),
             'ndvi': round(ndvi, 3),
             'evi': round(ndvi * 0.8, 3),
-            'quality': 'good',
-            'source': 'MODIS MOD13Q1'
+            'quality': 'mock',
+            'source': 'Mock Data (MODIS MOD13Q1 format)'
         })
     
     return timeseries
@@ -112,15 +130,19 @@ def home():
     """Home endpoint with API documentation"""
     return jsonify({
         'name': 'BloomWatch API',
-        'version': '1.0.0',
+        'version': '2.0.0',
         'description': 'Earth Observation API for Global Flowering Phenology',
+        'nasa_integration': 'REAL' if (nasa_service and USE_REAL_NASA_DATA) else 'MOCK',
+        'data_sources': ['NASA POWER API', 'NASA EONET', 'Weather-based NDVI'] if nasa_service else ['Mock Data'],
         'endpoints': {
             'health': '/api/health',
             'vegetation_indices': '/api/vegetation/indices?lat=38.9&lon=-77.0&start_date=2024-01-01&end_date=2024-03-31',
             'detect_bloom': '/api/bloom/detect (POST)',
             'predict_bloom': '/api/bloom/predict (POST)',
             'bloom_map': '/api/regions/bloom-map?min_lat=35&max_lat=40&min_lon=-80&max_lon=-75',
-            'bloom_calendar': '/api/species/bloom-calendar'
+            'bloom_calendar': '/api/species/bloom-calendar',
+            'earth_events': '/api/earth/events?days_back=30',
+            'current_weather': '/api/weather/current?lat=38.9&lon=-77.0'
         }
     })
 
@@ -131,14 +153,15 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.utcnow().isoformat(),
-        'version': '1.0.0',
-        'nasa_api': 'connected'
+        'version': '2.0.0',
+        'nasa_api': 'REAL_DATA' if (nasa_service and USE_REAL_NASA_DATA) else 'MOCK_DATA',
+        'data_source': 'NASA POWER API' if nasa_service else 'Generated Mock Data'
     })
 
 
 @app.route('/api/vegetation/indices', methods=['GET'])
 def get_vegetation_indices():
-    """Get vegetation indices for a location and time range"""
+    """Get vegetation indices for a location and time range - WITH REAL NASA DATA"""
     try:
         lat = float(request.args.get('lat', 38.9))
         lon = float(request.args.get('lon', -77.0))
@@ -150,22 +173,39 @@ def get_vegetation_indices():
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             return jsonify({'error': 'Invalid coordinates'}), 400
         
-        # Fetch data
-        data = generate_mock_ndvi_data(lat, lon, start_date, end_date)
+        # Try real NASA data first
+        if nasa_service and USE_REAL_NASA_DATA:
+            print(f"\n🛰️  Fetching REAL NASA data for ({lat}, {lon})")
+            result = nasa_service.fetch_vegetation_indices_real(lat, lon, start_date, end_date)
+            
+            if result['success']:
+                return jsonify({
+                    'location': result['location'],
+                    'time_range': result['time_range'],
+                    'data_source': result['data_source'],
+                    'statistics': result['statistics'],
+                    'weather_summary': result.get('weather_summary', {}),
+                    'data': result['data'],
+                    'note': 'Real NASA POWER data with weather-based NDVI estimation'
+                })
         
-        # Calculate statistics
+        # Fallback to mock data
+        print(f"📊 Using mock data for ({lat}, {lon})")
+        data = generate_mock_ndvi_data(lat, lon, start_date, end_date)
         ndvi_values = [d['ndvi'] for d in data]
         
         return jsonify({
             'location': {'lat': lat, 'lon': lon},
             'time_range': {'start': start_date, 'end': end_date},
+            'data_source': 'Mock Data (MODIS format)',
             'statistics': {
                 'mean_ndvi': round(float(np.mean(ndvi_values)), 3),
                 'max_ndvi': round(float(np.max(ndvi_values)), 3),
                 'min_ndvi': round(float(np.min(ndvi_values)), 3),
                 'data_points': len(data)
             },
-            'data': data
+            'data': data,
+            'note': 'Using mock data - set USE_REAL_NASA=true for real data'
         })
     
     except Exception as e:
@@ -174,7 +214,7 @@ def get_vegetation_indices():
 
 @app.route('/api/bloom/detect', methods=['POST'])
 def detect_bloom():
-    """Detect bloom events from vegetation data"""
+    """Detect bloom events - WITH REAL NASA DATA"""
     try:
         data = request.json
         lat = float(data.get('lat', 38.9))
@@ -182,10 +222,16 @@ def detect_bloom():
         start_date = data.get('start_date', (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d'))
         end_date = data.get('end_date', datetime.now().strftime('%Y-%m-%d'))
         
-        # Fetch time series
-        timeseries = generate_mock_ndvi_data(lat, lon, start_date, end_date)
+        # Try real NASA data first
+        if nasa_service and USE_REAL_NASA_DATA:
+            print(f"🔍 Detecting bloom with REAL NASA data...")
+            result = nasa_service.detect_bloom_real(lat, lon, start_date, end_date)
+            if result.get('success'):
+                return jsonify(result)
         
-        # Detect bloom
+        # Fallback to mock detection
+        print(f"🔍 Detecting bloom with mock data...")
+        timeseries = generate_mock_ndvi_data(lat, lon, start_date, end_date)
         bloom_event = detect_bloom_from_ndvi(timeseries)
         
         if bloom_event:
@@ -194,6 +240,7 @@ def detect_bloom():
                 'bloom_detected': True,
                 'bloom_event': bloom_event,
                 'recommendation': 'Peak bloom expected within 7-14 days of onset',
+                'data_source': 'Mock Data',
                 'timeseries': timeseries
             })
         else:
@@ -201,8 +248,77 @@ def detect_bloom():
                 'location': {'lat': lat, 'lon': lon},
                 'bloom_detected': False,
                 'message': 'No significant bloom event detected',
+                'data_source': 'Mock Data',
                 'timeseries': timeseries
             })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/earth/events', methods=['GET'])
+def get_earth_events():
+    """Get Earth observation events from NASA EONET"""
+    try:
+        days_back = int(request.args.get('days_back', 30))
+        category = request.args.get('category', None)
+        
+        if nasa_service:
+            events = nasa_service.fetch_earth_events(days_back=days_back, category=category)
+            return jsonify({
+                'success': True,
+                'count': len(events),
+                'events': events,
+                'source': 'NASA EONET API'
+            })
+        
+        return jsonify({
+            'success': False,
+            'message': 'NASA service not available',
+            'events': []
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/weather/current', methods=['GET'])
+def get_weather():
+    """Get current weather data from NASA POWER API"""
+    try:
+        lat = float(request.args.get('lat', 38.9))
+        lon = float(request.args.get('lon', -77.0))
+        
+        # Get last 7 days of weather
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        if nasa_service and USE_REAL_NASA_DATA:
+            weather_data = nasa_service.fetch_weather_data(lat, lon, start_date, end_date)
+            
+            if weather_data['success']:
+                # Calculate averages
+                temps = [d['temp_avg'] for d in weather_data['data'] if d['temp_avg']]
+                precip = [d['precipitation'] for d in weather_data['data'] if d['precipitation']]
+                
+                return jsonify({
+                    'success': True,
+                    'location': {'lat': lat, 'lon': lon},
+                    'period': {'start': start_date, 'end': end_date},
+                    'summary': {
+                        'avg_temperature': round(np.mean(temps), 1) if temps else None,
+                        'max_temperature': round(np.max(temps), 1) if temps else None,
+                        'min_temperature': round(np.min(temps), 1) if temps else None,
+                        'total_precipitation': round(sum(precip), 1) if precip else None
+                    },
+                    'daily_data': weather_data['data'],
+                    'source': 'NASA POWER API'
+                })
+        
+        return jsonify({
+            'success': False,
+            'message': 'NASA weather service not available'
+        })
     
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -403,6 +519,18 @@ if __name__ == '__main__':
     print("📡 Server: http://localhost:5000")
     print("📚 API Docs: http://localhost:5000/")
     print("💚 Health Check: http://localhost:5000/api/health")
+    print("="*60)
+    
+    if nasa_service and USE_REAL_NASA_DATA:
+        print("🛰️  NASA INTEGRATION: ENABLED (Real Data)")
+        print("📊 Data Sources:")
+        print("   - NASA POWER API (Weather)")
+        print("   - NASA EONET API (Earth Events)")
+        print("   - Weather-based NDVI estimation")
+    else:
+        print("🎭 NASA INTEGRATION: DISABLED (Mock Data)")
+        print("💡 To enable: Set USE_REAL_NASA=true")
+    
     print("="*60)
     print("\nPress CTRL+C to stop the server\n")
     
