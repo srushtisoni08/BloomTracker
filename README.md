@@ -93,16 +93,6 @@ Then open: [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## 🔮 Future Enhancements
-
-- 🌦️ Integrate real-time temperature & rainfall data (NASA POWER, OpenWeatherMap).
-- 🧬 ML-based bloom prediction model (LSTM / Random Forest).
-- 📱 Mobile-friendly responsive dashboard.
-- 🪴 Add species-specific bloom tracking (flowers, crops).
-- ☁️ Deploy on Render / Vercel with a cloud DB (e.g., Supabase).
-
----
-
 ## 🏆 Challenge Alignment: NASA BloomWatch
 
 | BloomWatch Objective | How BloomTracker Aligns |
