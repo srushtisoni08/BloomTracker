@@ -86,7 +86,7 @@ Then open: [http://localhost:5173](http://localhost:5173)
 
 ## 📊 Example Workflow
 
-1. User selects a region (e.g., Gujarat, India).
+1. User selects a region (e.g., Tokyo, Japan).
 2. Backend fetches NDVI/EVI satellite data for that area.
 3. Data is analyzed for seasonal patterns and bloom timing.
 4. Frontend visualizes the results on a **map with bloom intensity and time slider**.
